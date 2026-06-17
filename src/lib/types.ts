@@ -34,6 +34,14 @@ export type ReceiptCard = {
   display_name: string | null;
   /** Proxied avatar path (`/api/avatar?u=...`) so html-to-image/print can inline it. */
   avatar_url: string | null;
+  /** Whether the IG account carries a verified badge. */
+  is_verified: boolean;
+  /** Public profile counts shown under the avatar. */
+  stats: {
+    posts: number | null;
+    followers: number | null;
+    following: number | null;
+  };
 
   // ---- the three things ----
   /** Exactly three "STANLEY'S READ" insights. */

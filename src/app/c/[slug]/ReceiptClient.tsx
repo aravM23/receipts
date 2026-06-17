@@ -41,7 +41,7 @@ export default function ReceiptClient({
       const dataUrl = await toPng(receiptRef.current, {
         pixelRatio: 3,
         cacheBust: true,
-        backgroundColor: "#f3efe6",
+        backgroundColor: "#ffffff",
       });
       const a = document.createElement("a");
       a.href = dataUrl;

@@ -27,6 +27,8 @@ import type { ReceiptCard } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Hiker scrape + LLM can take a while; give it room (Pro allows up to 300s).
+export const maxDuration = 60;
 
 const FRESH_MS = 6 * 60 * 60 * 1000;
 
@@ -67,10 +69,18 @@ export async function POST(req: Request) {
   }
 
   // De-dupe fresh re-generations (skip when ?force, e.g. while tuning copy).
+  // Wrapped so a store outage can't crash the request before the main
+  // pipeline — worst case we skip the dedup and generate a fresh card.
   if (!body.force) {
-    const existing = await getRecentCardForHandle(handle, FRESH_MS);
-    if (existing) {
-      return NextResponse.json({ slug: existing.slug, reused: true });
+    try {
+      const existing = await getRecentCardForHandle(handle, FRESH_MS);
+      if (existing) {
+        return NextResponse.json({ slug: existing.slug, reused: true });
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[generate] dedup lookup failed, continuing", e);
+      }
     }
   }
 
@@ -87,6 +97,12 @@ export async function POST(req: Request) {
       avatar_url: profile.profile_pic_url
         ? `/api/avatar?u=${encodeURIComponent(profile.profile_pic_url)}`
         : null,
+      is_verified: profile.is_verified,
+      stats: {
+        posts: profile.media_count,
+        followers: profile.follower_count,
+        following: profile.following_count,
+      },
       insights: generated.insights,
       creator_type: generated.creator_type,
       drink: generated.drink,
