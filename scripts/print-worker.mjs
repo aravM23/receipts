@@ -54,6 +54,35 @@ import os from "node:os";
 import path from "node:path";
 import { execFile, exec } from "node:child_process";
 
+/**
+ * Minimal .env loader so the worker is configured by editing a file (no need
+ * to set shell env vars — friendlier on Windows). Reads .env.local then .env
+ * from the current directory. Real environment variables always win. Quotes
+ * are stripped only when they wrap the whole value (so PRINT_CMD, which
+ * contains its own quotes, is kept literal — write it WITHOUT outer quotes).
+ */
+function loadEnvFile() {
+  for (const name of [".env.local", ".env"]) {
+    const p = path.join(process.cwd(), name);
+    if (!fs.existsSync(p)) continue;
+    for (const raw of fs.readFileSync(p, "utf8").split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      if (!key || key in process.env) continue; // don't override real env
+      let val = line.slice(eq + 1).trim();
+      const q = val[0];
+      if ((q === '"' || q === "'") && val[val.length - 1] === q && val.indexOf(q, 1) === val.length - 1) {
+        val = val.slice(1, -1);
+      }
+      process.env[key] = val;
+    }
+  }
+}
+loadEnvFile();
+
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 // The QR must resolve on a phone — localhost won't. Falls back to BASE_URL.
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || BASE_URL).replace(/\/$/, "");
