@@ -7,13 +7,17 @@
  * just enqueues a job (no browser print dialog, ever). This worker drains the
  * queue and prints. Three modes, auto-selected by env:
  *
- *   1) LABEL / CUPS  (PRINTER_NAME set)  ← MUNBYN 4x6 & friends
+ *   1) LABEL  (PRINTER_NAME set)  ← MUNBYN 4x6 & friends
  *      Prints the exact on-screen receipt PNG (captured client-side and
- *      attached to the job) to a CUPS print queue via `lp`. Silent. This is
- *      the right mode for the MUNBYN Bluetooth 4x6 label printer, which on a
- *      computer connects over USB and installs as a CUPS raster printer
- *      (its Bluetooth is iOS/Android-only). Find the queue name with
- *      `lpstat -p`.
+ *      attached to the job) to a named OS printer queue. Silent — no dialog.
+ *      The MUNBYN 4x6 connects over USB and installs via the vendor driver.
+ *      Printing command per platform:
+ *        - Windows:      `mspaint /pt <file> <printer>` (built-in, no install).
+ *                        For reliable kiosk printing prefer SumatraPDF via
+ *                        PRINT_CMD (see below) — set the driver's default paper
+ *                        to 4x6. Find the printer name in Settings > Printers.
+ *        - macOS/Linux:  CUPS `lp -d <printer>`. Find the name with `lpstat -p`.
+ *        - PRINT_CMD:    overrides the above on any OS (see env).
  *
  *   2) ESC/POS raw   (PRINTER_DEVICE set, no PRINTER_NAME)
  *      Legacy 58/80mm thermal receipt printers. Writes ESC/POS bytes
@@ -29,9 +33,14 @@
  *   PUBLIC_BASE_URL     default = BASE_URL             (what the printed QR encodes —
  *                                                        must be reachable from a phone)
  *   PRINT_WORKER_TOKEN  must match the server's value
- *   PRINTER_NAME        CUPS queue name (label/CUPS mode). e.g. MUNBYN_ITPP941
- *   PRINT_MEDIA         optional CUPS media for label mode, e.g. Custom.4x6in
- *   PRINT_LP_OPTS       optional extra `lp` options (default "-o fit-to-page")
+ *   PRINTER_NAME        printer/queue name (label mode). Windows: the name in
+ *                       Settings > Printers. macOS/Linux: from `lpstat -p`.
+ *   PRINT_CMD           optional full print command template; overrides the
+ *                       per-OS default. Use {file} and {printer} placeholders,
+ *                       e.g. (Windows + SumatraPDF):
+ *                       "C:\\Tools\\SumatraPDF.exe" -print-to "{printer}" -silent -print-settings "fit" "{file}"
+ *   PRINT_MEDIA         CUPS media for `lp` (macOS/Linux), e.g. Custom.4x6in
+ *   PRINT_LP_OPTS       extra `lp` options (macOS/Linux, default "-o fit-to-page")
  *   PRINTER_DEVICE      raw device path (ESC/POS mode), e.g. /dev/usb/lp0
  *   RECEIPT_COLS        default 42 (80mm Font A). Use 32 for 58mm. (ESC/POS only)
  *   QR_SIZE             default 7  (ESC/POS QR module size, 1–16)        (ESC/POS only)
@@ -43,16 +52,18 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, exec } from "node:child_process";
 
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 // The QR must resolve on a phone — localhost won't. Falls back to BASE_URL.
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || BASE_URL).replace(/\/$/, "");
 const TOKEN = process.env.PRINT_WORKER_TOKEN || "dev-print-token";
 const PRINTER_NAME = process.env.PRINTER_NAME || null;
+const PRINT_CMD = process.env.PRINT_CMD || null;
 const PRINT_MEDIA = process.env.PRINT_MEDIA || null;
 const PRINT_LP_OPTS = process.env.PRINT_LP_OPTS ?? "-o fit-to-page";
 const PRINTER_DEVICE = process.env.PRINTER_DEVICE || null;
+const IS_WIN = process.platform === "win32";
 const POLL_MS = Number(process.env.POLL_MS || 2000);
 const QR_SIZE = Math.min(16, Math.max(1, Number(process.env.QR_SIZE || 7)));
 const OUT_DIR = path.join(process.cwd(), "print-output");
@@ -218,21 +229,37 @@ function decodeImage(image) {
   }
 }
 
-/** Print a PNG file to a CUPS queue via `lp`. Resolves with the lp request id. */
-function lpPrint(file) {
-  const args = ["-d", PRINTER_NAME];
-  if (PRINT_MEDIA) args.push("-o", `media=${PRINT_MEDIA}`);
-  // PRINT_LP_OPTS is a raw option string like "-o fit-to-page -o scaling=100".
-  for (const tok of PRINT_LP_OPTS.split(/\s+/).filter(Boolean)) args.push(tok);
-  args.push(file);
+/**
+ * Print a PNG file to the named printer, silently, on whatever OS we're on.
+ *   - PRINT_CMD set → run that template ({file}/{printer} substituted).
+ *   - Windows       → `mspaint /pt <file> <printer>` (built-in; uses the
+ *                     driver's default paper — set it to 4x6).
+ *   - macOS/Linux   → CUPS `lp -d <printer> [media/opts] <file>`.
+ * Resolves with a short status string.
+ */
+function printFile(file) {
   return new Promise((resolve, reject) => {
-    execFile("lp", args, (err, stdout, stderr) => {
-      if (err) {
-        reject(new Error((stderr || stdout || err.message || "lp failed").trim()));
-        return;
-      }
-      resolve((stdout || "").trim());
-    });
+    const done = (err, stdout, stderr, ok) =>
+      err
+        ? reject(new Error((stderr || stdout || err.message || "print failed").trim()))
+        : resolve((stdout || ok || "").trim());
+
+    if (PRINT_CMD) {
+      const cmd = PRINT_CMD.split("{file}").join(file).split("{printer}").join(PRINTER_NAME || "");
+      exec(cmd, (e, o, s) => done(e, o, s, "sent via PRINT_CMD"));
+      return;
+    }
+    if (IS_WIN) {
+      // mspaint /pt <file> <printer> prints to the named printer and exits.
+      execFile("mspaint", ["/pt", file, PRINTER_NAME], (e, o, s) => done(e, o, s, "sent via mspaint"));
+      return;
+    }
+    const args = ["-d", PRINTER_NAME];
+    if (PRINT_MEDIA) args.push("-o", `media=${PRINT_MEDIA}`);
+    // PRINT_LP_OPTS is a raw option string like "-o fit-to-page -o scaling=100".
+    for (const tok of PRINT_LP_OPTS.split(/\s+/).filter(Boolean)) args.push(tok);
+    args.push(file);
+    execFile("lp", args, (e, o, s) => done(e, o, s));
   });
 }
 
@@ -249,8 +276,8 @@ async function emitLabel(card, job) {
   const tmp = path.join(os.tmpdir(), `stanley-ticket-${card.ticket}-${job.id}.png`);
   fs.writeFileSync(tmp, png);
   try {
-    const reqId = await lpPrint(tmp);
-    console.log(`[worker] ticket #${card.ticket} → ${PRINTER_NAME} (${reqId || "queued"})`);
+    const status = await printFile(tmp);
+    console.log(`[worker] ticket #${card.ticket} → ${PRINTER_NAME} (${status || "queued"})`);
   } finally {
     fs.rmSync(tmp, { force: true });
   }
@@ -300,7 +327,10 @@ async function complete(id, status, error) {
 }
 
 function describeTarget() {
-  if (MODE === "label") return `CUPS queue "${PRINTER_NAME}"${PRINT_MEDIA ? ` (media ${PRINT_MEDIA})` : ""}`;
+  if (MODE === "label") {
+    const via = PRINT_CMD ? "PRINT_CMD" : IS_WIN ? "mspaint" : "lp";
+    return `printer "${PRINTER_NAME}" via ${via}${!IS_WIN && PRINT_MEDIA ? ` (media ${PRINT_MEDIA})` : ""}`;
+  }
   if (MODE === "escpos") return `ESC/POS device ${PRINTER_DEVICE}`;
   return "./print-output/ (dry run — set PRINTER_NAME for a label printer)";
 }

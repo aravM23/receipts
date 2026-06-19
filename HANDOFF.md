@@ -158,16 +158,18 @@ PRINT_WORKER_TOKEN=dev-print-token npm run print-worker
 
 The worker auto-selects a mode (see `.env.example` for all vars):
 
-- **Label / CUPS** (`PRINTER_NAME` set) — **the MUNBYN 4x6 path.** Prints the
-  captured receipt PNG to a CUPS queue via `lp` — fully silent. The MUNBYN
-  Bluetooth 4x6 connects to a computer over **USB** (its Bluetooth is
-  iOS/Android-only) and installs as a CUPS **raster** printer (not ESC/POS),
-  so we print the image, not text. Setup: install the MUNBYN Mac driver
-  (https://munbyn.biz/941macd), plug in USB, `lpstat -p` to get the queue
-  name → `PRINTER_NAME`. Tune with `PRINT_MEDIA` (e.g. `Custom.4x6in`) and
-  `PRINT_LP_OPTS` (default `-o fit-to-page`). NB: the receipt is a tall narrow
-  strip; on a 4x6 label it centers with side margins — use a narrower label
-  roll (printer takes 40–110mm wide) or adjust media to taste.
+- **Label** (`PRINTER_NAME` set) — **the MUNBYN 4x6 path.** Prints the captured
+  receipt PNG to a named OS printer, fully silent. The receipt is authored at a
+  true 4x6 aspect (812x1218) so it fills the label. Per OS:
+  - **Windows** (current bar machine): install the MUNBYN Windows driver, plug
+    in USB, set the driver's **default paper to 4x6**. `PRINTER_NAME` = the name
+    in Settings > Printers & scanners. Default print uses built-in
+    `mspaint /pt`; if Win11 Paint opens instead of printing, install **SumatraPDF**
+    and set `PRINT_CMD` (see `.env.example`) — the kiosk-reliable path.
+  - **macOS/Linux**: install the MUNBYN Mac driver (https://munbyn.biz/941macd),
+    plug in USB, `lpstat -p` → `PRINTER_NAME`. Tune `PRINT_MEDIA`
+    (`Custom.4x6in`) / `PRINT_LP_OPTS` (`-o fit-to-page`).
+  - `PRINT_CMD` (any OS) overrides the command; `{file}`/`{printer}` placeholders.
 - **ESC/POS raw** (`PRINTER_DEVICE=/dev/usb/lp0`, no `PRINTER_NAME`) — legacy
   58/80mm receipt printers; renders text + native QR (`GS ( k`). 42 cols = 80mm.
 - **Dry run** (neither set) — writes `./print-output/<ticket>.{png,bin,txt}`.
