@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  let body: { slug?: string };
+  let body: { slug?: string; image?: string };
   try {
     body = await req.json();
   } catch {
@@ -27,6 +27,13 @@ export async function POST(req: Request) {
   if (!slug || !(await getCard(slug))) {
     return NextResponse.json({ error: "not_found", message: "No such card." }, { status: 404 });
   }
-  const job = await enqueuePrintJob(slug, newSlug());
-  return NextResponse.json({ job });
+  // Only accept a PNG data URL so a label printer can render the exact
+  // on-screen receipt; anything else is ignored (ESC/POS path still works).
+  const image =
+    typeof body.image === "string" && body.image.startsWith("data:image/png;base64,")
+      ? body.image
+      : undefined;
+  const job = await enqueuePrintJob(slug, newSlug(), image);
+  // Don't echo the (large) image back to the kiosk.
+  return NextResponse.json({ job: { ...job, image: undefined } });
 }

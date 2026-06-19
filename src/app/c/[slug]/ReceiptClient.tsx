@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
 import Receipt, { RECEIPT_WIDTH } from "@/components/Receipt";
+import ReceiptFrame from "@/components/ReceiptFrame";
 import StanleyHeader from "@/components/StanleyHeader";
 import type { ReceiptCard } from "@/lib/types";
 
@@ -58,10 +59,25 @@ export default function ReceiptClient({
     if (busy) return;
     setBusy("queue");
     try {
+      // Capture the exact on-screen receipt so a label printer (MUNBYN 4x6)
+      // can print it verbatim via CUPS. pixelRatio 2 keeps the payload small
+      // enough for Redis while staying crisp on a 203/300dpi thermal head.
+      let image: string | undefined;
+      if (receiptRef.current) {
+        try {
+          image = await toPng(receiptRef.current, {
+            pixelRatio: 2,
+            cacheBust: true,
+            backgroundColor: "#ffffff",
+          });
+        } catch {
+          image = undefined; // worker falls back to its text/ESC-POS path
+        }
+      }
       const resp = await fetch("/api/print", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: card.slug }),
+        body: JSON.stringify({ slug: card.slug, image }),
       });
       if (!resp.ok) throw new Error();
       flash("Printing your receipt…");
@@ -87,16 +103,19 @@ export default function ReceiptClient({
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-[940px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-10 lg:gap-16">
-          {/* The receipt */}
-          <div ref={receiptRef} style={{ width: RECEIPT_WIDTH }} className="shrink-0">
-            <Receipt
-              card={card}
-              qrDataUrl={qrDataUrl}
-              dateLabel={dateLabel}
-              timeLabel={timeLabel}
-              relativeLabel={relativeLabel}
-            />
-          </div>
+          {/* The receipt — authored at native 4x6 size, scaled to fit on screen.
+              The captured node (receiptRef) stays full-res for print/PNG. */}
+          <ReceiptFrame maxDisplayWidth={400} className="shrink-0">
+            <div ref={receiptRef} style={{ width: RECEIPT_WIDTH }}>
+              <Receipt
+                card={card}
+                qrDataUrl={qrDataUrl}
+                dateLabel={dateLabel}
+                timeLabel={timeLabel}
+                relativeLabel={relativeLabel}
+              />
+            </div>
+          </ReceiptFrame>
 
           {/* Heading + actions */}
           <div className="w-full max-w-[380px] flex flex-col lg:pt-6">

@@ -146,17 +146,35 @@ recent-by-handle dedup, and the print-job queue (Redis sorted set for FIFO).
 
 ## 8. Printing
 
-The iPad/desktop **never talks to the printer**. It enqueues a job via
-`POST /api/print`. A **worker** on the machine wired to the thermal printer
-drains the queue and emits ESC/POS (native QR via `GS ( k`).
+The iPad/desktop **never talks to the printer** and there is **no browser
+print dialog**. The "Print my receipt" button captures the on-screen receipt
+as a PNG (`html-to-image`, pixelRatio 2) and enqueues a job via
+`POST /api/print` (the PNG rides along on the job, inline, 6h Redis TTL). A
+**worker** on the machine the printer is wired to drains the queue and prints.
 
 ```bash
 PRINT_WORKER_TOKEN=dev-print-token npm run print-worker
 ```
 
-No `PRINTER_DEVICE` → dry-run into `./print-output/*.bin` (+ `.txt` preview).
-Real hardware: `PRINTER_DEVICE=/dev/usb/lp0`. Width 42 cols = 80mm (default).
-The "Print my receipt" button is silent by design (no browser print dialog).
+The worker auto-selects a mode (see `.env.example` for all vars):
+
+- **Label / CUPS** (`PRINTER_NAME` set) — **the MUNBYN 4x6 path.** Prints the
+  captured receipt PNG to a CUPS queue via `lp` — fully silent. The MUNBYN
+  Bluetooth 4x6 connects to a computer over **USB** (its Bluetooth is
+  iOS/Android-only) and installs as a CUPS **raster** printer (not ESC/POS),
+  so we print the image, not text. Setup: install the MUNBYN Mac driver
+  (https://munbyn.biz/941macd), plug in USB, `lpstat -p` to get the queue
+  name → `PRINTER_NAME`. Tune with `PRINT_MEDIA` (e.g. `Custom.4x6in`) and
+  `PRINT_LP_OPTS` (default `-o fit-to-page`). NB: the receipt is a tall narrow
+  strip; on a 4x6 label it centers with side margins — use a narrower label
+  roll (printer takes 40–110mm wide) or adjust media to taste.
+- **ESC/POS raw** (`PRINTER_DEVICE=/dev/usb/lp0`, no `PRINTER_NAME`) — legacy
+  58/80mm receipt printers; renders text + native QR (`GS ( k`). 42 cols = 80mm.
+- **Dry run** (neither set) — writes `./print-output/<ticket>.{png,bin,txt}`.
+
+Truly silent printing requires the worker on a desktop/laptop (Mac/Win/Linux)
+wired to the printer. An iPad-only kiosk can't print silently from the browser
+(iOS always shows a share/print sheet) — run the worker on a paired Mac.
 
 ---
 

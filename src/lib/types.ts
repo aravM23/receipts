@@ -68,4 +68,11 @@ export type PrintJob = {
   updated_at: string; // ISO
   /** Set when status === "error". */
   error?: string;
+  /**
+   * Optional PNG snapshot of the rendered receipt as a data URL
+   * (`data:image/png;base64,...`), captured client-side at print time.
+   * Label printers (e.g. MUNBYN 4x6) print this image via CUPS; ESC/POS
+   * printers ignore it and render text instead.
+   */
+  image?: string;
 };

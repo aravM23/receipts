@@ -164,11 +164,20 @@ export async function listCards(): Promise<ReceiptCard[]> {
 // Print queue
 // ---------------------------------------------------------------------------
 
-export async function enqueuePrintJob(slug: string, id: string): Promise<PrintJob> {
+// Print jobs (and their inlined PNG snapshots) are bounded with a TTL in
+// Redis so a long event doesn't accumulate large image payloads forever.
+const JOB_TTL_SECONDS = 6 * 60 * 60;
+
+export async function enqueuePrintJob(
+  slug: string,
+  id: string,
+  image?: string,
+): Promise<PrintJob> {
   const now = new Date().toISOString();
   const job: PrintJob = { id, slug, status: "queued", created_at: now, updated_at: now };
+  if (image) job.image = image;
   if (redis) {
-    await redis.set(K.job(id), job);
+    await redis.set(K.job(id), job, { ex: JOB_TTL_SECONDS });
     await redis.zadd(K.queue, { score: Date.now(), member: id });
     return job;
   }
@@ -190,7 +199,7 @@ export async function claimNextPrintJob(): Promise<PrintJob | null> {
       if (job.status === "queued") {
         job.status = "printing";
         job.updated_at = new Date().toISOString();
-        await redis.set(K.job(id), job);
+        await redis.set(K.job(id), job, { ex: JOB_TTL_SECONDS });
         await redis.zrem(K.queue, id); // out of the pending queue once claimed
         return job;
       }
@@ -220,7 +229,7 @@ export async function updatePrintJob(
     job.status = status;
     job.updated_at = new Date().toISOString();
     if (error) job.error = error;
-    await redis.set(K.job(id), job);
+    await redis.set(K.job(id), job, { ex: JOB_TTL_SECONDS });
     return job;
   }
   const s = fileRead();

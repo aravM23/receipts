@@ -119,7 +119,7 @@ textarea,
 
 @media print {
   @page {
-    size: 72mm auto;
+    size: 4in 6in;
     margin: 0;
   }
   body {
@@ -136,7 +136,8 @@ textarea,
     position: absolute;
     left: 0;
     top: 0;
-    width: 72mm;
+    width: 4in;
+    height: 6in;
     margin: 0;
     box-shadow: none !important;
     border-radius: 0 !important;

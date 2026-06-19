@@ -23,6 +23,7 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -36,3 +37,4 @@ next-env.d.ts
 
 # print worker output (raw ESC/POS + previews)
 /print-output
+.env*.local
