@@ -26,6 +26,23 @@ const BORDER = "#cfced6";
 const DASH = "#b9b8c2";
 const PAD_X = 66;
 
+/**
+ * Per-drink hero art. Each drink on the bar menu gets its own image; drinks
+ * without bespoke art yet fall back to the default cocktail hero.
+ */
+const DRINK_IMAGES: Record<string, string> = {
+  "Aperol Spritz": "/cocktail-hero.png",
+  Margarita: "/drink-margarita.png",
+  "French 75": "/drink-french-75.png",
+  Wine: "/drink-wine.png",
+  Beer: "/drink-beer.png",
+};
+const DEFAULT_DRINK_IMAGE = "/cocktail-hero.png";
+
+function drinkImage(drink: string): string {
+  return DRINK_IMAGES[drink] ?? DEFAULT_DRINK_IMAGE;
+}
+
 type Props = {
   card: ReceiptCard;
   qrDataUrl: string;
@@ -58,7 +75,7 @@ export default function Receipt({ card, framed = true }: Props) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/cocktail-hero.png"
+          src={drinkImage(card.drink)}
           alt=""
           style={{ display: "block", height: 360, width: "auto", objectFit: "contain", filter: "grayscale(1)" }}
         />
