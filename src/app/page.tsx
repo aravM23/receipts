@@ -1,89 +1,73 @@
-import StanleyHeader from "@/components/StanleyHeader";
 import HandleForm from "./HandleForm";
 
 /**
- * Landing — Stanley-branded onboarding. Dark Stanley canvas, purple
- * glow, the mascot peeking in, and a gradient headline word — then the
- * single handle input that kicks off the receipt.
+ * Landing — full-bleed looping video background (the Stanley mascot/bubble
+ * lives in the video) with the headline, blurb, and handle input overlaid in
+ * the lower half. Built to fill any screen aspect (portrait panel PC included)
+ * via object-cover on the video.
+ *
+ * Drop the background clip at `public/landing-bg.mp4` (optionally a still
+ * frame at `public/landing-poster.jpg` for instant first paint). Until then
+ * the dark Stanley canvas shows through.
  */
 export default function Home() {
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden">
-      {/* Ambient Stanley-purple glow + sparkles */}
+    <div className="relative flex-1 min-h-[100svh] overflow-hidden" style={{ background: "var(--color-stan-canvas)" }}>
+      {/* Looping background video */}
+      <video
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        poster="/landing-poster.jpg"
+        aria-hidden
+      >
+        <source src="/landing-bg.mp4" type="video/mp4" />
+      </video>
+
+      {/* Legibility gradient — keeps the lower-half text crisp over the video */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(80% 55% at 50% -8%, rgba(105,85,255,0.28), transparent 60%), radial-gradient(60% 40% at 85% 12%, rgba(232,90,163,0.12), transparent 60%)",
+            "linear-gradient(to bottom, rgba(10,8,22,0) 0%, rgba(10,8,22,0.12) 40%, rgba(10,8,22,0.62) 70%, rgba(10,8,22,0.92) 90%, rgba(10,8,22,0.97) 100%)",
         }}
       />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/sparkle-lavender.png" alt="" aria-hidden className="pointer-events-none absolute left-[12%] top-[20%] w-5 opacity-70" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/sparkle-cream.png" alt="" aria-hidden className="pointer-events-none absolute right-[14%] top-[30%] w-5 opacity-60" />
 
-      <div className="relative z-10">
-        <StanleyHeader />
-      </div>
-
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 pb-16 pt-4">
-        <div className="w-full max-w-[560px] text-center">
-          {/* Product lockup: Stanley mascot + "Stanley+" */}
-          <div className="flex items-center justify-center gap-2.5 mb-7">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/stanley-mark.png" alt="" width={40} height={40} className="block" />
-            <span
-              className="font-stanley text-[24px] leading-none"
-              style={{ fontWeight: 700 }}
-            >
-              Stanley<span className="stan-gradient-text" style={{ fontWeight: 700 }}>+</span>
-            </span>
-          </div>
-
+      {/* Overlaid content, anchored to the lower half */}
+      <main className="relative z-10 min-h-[100svh] flex flex-col justify-end items-center px-6 pb-[7svh] text-center">
+        <div className="w-full max-w-[460px]">
           <h1
-            className="font-serif"
-            style={{ fontSize: "clamp(2.6rem, 6vw, 4.4rem)", lineHeight: 1.04, letterSpacing: "-0.02em", fontWeight: 500 }}
+            className="font-sans text-white"
+            style={{
+              fontSize: "clamp(2.1rem, 7.5vw, 3.1rem)",
+              lineHeight: 1.06,
+              letterSpacing: "-0.02em",
+              fontWeight: 700,
+            }}
           >
-            Let Stanley
+            Let Stanley mix your
             <br />
-            <span className="stan-gradient-text italic" style={{ fontWeight: 500 }}>
-              read you
-            </span>
+            Creator cocktail
           </h1>
 
-          <p className="mt-5 text-[15px] sm:text-[16px] leading-relaxed mx-auto max-w-[440px]" style={{ color: "rgba(243,239,230,0.66)" }}>
-            Drop your Instagram handle. Stanley reads your last few months of
-            posts and prints a receipt: three things we noticed, your creator
-            type, and a drink that&rsquo;s on us.
+          <p
+            className="mt-4 mx-auto max-w-[360px] text-[14px] sm:text-[15px]"
+            style={{ color: "rgba(243,239,230,0.62)", lineHeight: 1.55 }}
+          >
+            Stanley is your AI head of content. Drop your Instagram handle below
+            and we&rsquo;ll mix up a personalized creator cocktail based on your
+            content, style, and personality.
           </p>
 
-          <div className="mt-9 text-left">
+          <div className="mt-7 text-left">
             <HandleForm />
-          </div>
-
-          <div className="mt-7 flex items-center justify-center text-[12px]" style={{ color: "rgba(243,239,230,0.45)" }}>
-            <a
-              href="https://ig.getstanley.ai/?utm_source=stanley_receipts&utm_medium=footer"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2 hover:text-white transition-colors"
-            >
-              powered by Stanley for Instagram
-            </a>
           </div>
         </div>
       </main>
-
-      {/* Mascot peeking in from the bottom-right corner */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/stanley-peek.png"
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute right-[-10px] bottom-[-12px] w-[120px] sm:w-[160px] lg:w-[210px] opacity-95 select-none"
-        style={{ filter: "drop-shadow(0 12px 30px rgba(105,85,255,0.35))" }}
-      />
     </div>
   );
 }

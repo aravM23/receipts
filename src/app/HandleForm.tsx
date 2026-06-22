@@ -46,16 +46,15 @@ export default function HandleForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <div
-        className="flex items-center rounded-full px-5 transition-colors focus-within:border-[var(--color-stan-400)]"
+        className="flex items-center rounded-full px-6 transition-colors focus-within:border-[var(--color-stan-400)]"
         style={{
-          background: "var(--color-canvas-2)",
-          border: "1px solid rgba(166,161,255,0.22)",
-          height: 56,
+          background: "rgba(20,16,40,0.55)",
+          border: "1px solid rgba(166,161,255,0.28)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          height: 58,
         }}
       >
-        <span className="text-[16px] font-sans" style={{ color: "rgba(243,239,230,0.5)" }}>
-          @
-        </span>
         <input
           value={handle}
           onChange={(e) => {
@@ -66,9 +65,9 @@ export default function HandleForm() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="yourhandle"
+          placeholder="@handle"
           aria-label="Instagram handle"
-          className="flex-1 bg-transparent outline-none text-[16px] pl-1.5 font-sans"
+          className="flex-1 bg-transparent outline-none text-[16px] font-sans placeholder:text-[rgba(243,239,230,0.42)]"
           style={{ color: "#f3efe6" }}
         />
       </div>
@@ -76,13 +75,14 @@ export default function HandleForm() {
       <button
         type="submit"
         disabled={loading}
-        className="stan-gradient-bg w-full rounded-full flex items-center justify-center gap-2 transition-transform active:scale-[0.99] disabled:opacity-70 font-sans text-white"
+        className="w-full rounded-full flex items-center justify-center gap-2 transition-transform active:scale-[0.99] disabled:opacity-70 font-sans text-white"
         style={{
-          height: 56,
+          height: 58,
           fontWeight: 700,
-          fontSize: 15.5,
+          fontSize: 16,
           letterSpacing: "0.01em",
-          boxShadow: "0 14px 34px -10px rgba(168,86,232,0.6)",
+          background: "linear-gradient(180deg, #7b68ff 0%, #6955ff 100%)",
+          boxShadow: "0 14px 34px -10px rgba(105,85,255,0.7)",
         }}
       >
         {loading ? (
@@ -91,19 +91,15 @@ export default function HandleForm() {
               className="inline-block w-4 h-4 rounded-full animate-spin"
               style={{ border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "#fff" }}
             />
-            Reading your feed…
+            Mixing your cocktail…
           </>
         ) : (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/stanley-mark.png" alt="" width={22} height={22} className="-ml-1" />
-            Print my receipt
-          </>
+          "Print My Drink Ticket"
         )}
       </button>
 
       {error && (
-        <p className="text-[12.5px] font-sans" style={{ color: "#ffb4c4" }}>
+        <p className="text-[12.5px] font-sans text-center" style={{ color: "#ffb4c4" }}>
           {error}
         </p>
       )}
