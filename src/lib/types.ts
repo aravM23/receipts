@@ -57,6 +57,12 @@ export type ReceiptCard = {
   data_source: "hiker" | "mock";
   /** Whether the OpenAI pass succeeded (false = rule-based fallback copy). */
   llm_used: boolean;
+  /**
+   * Pre-warmed (curated) card for an expected creator. Pinned cards are
+   * served on their handle forever, ignoring the normal freshness window,
+   * so a known creator gets their ready-made card instantly on-site.
+   */
+  pinned?: boolean;
 };
 
 /** A queued print job. The worker polls for these. */

@@ -21,7 +21,7 @@ import { normalizeHandle } from "@/lib/handle";
 import { ingestByHandle, IngestError } from "@/lib/hiker";
 import { buildDigest } from "@/lib/digest";
 import { generateReceipt } from "@/lib/generate";
-import { getRecentCardForHandle, nextTicket, saveCard } from "@/lib/store";
+import { getCardForHandle, nextTicket, saveCard } from "@/lib/store";
 import { newSlug } from "@/lib/slug";
 import type { ReceiptCard } from "@/lib/types";
 
@@ -68,14 +68,20 @@ export async function POST(req: Request) {
     );
   }
 
-  // De-dupe fresh re-generations (skip when ?force, e.g. while tuning copy).
-  // Wrapped so a store outage can't crash the request before the main
-  // pipeline — worst case we skip the dedup and generate a fresh card.
+  // Serve a ready-made card when we have one:
+  //   - pinned (pre-warmed curated creator) → always reuse, ignore age
+  //   - organic → reuse only if still fresh (<6h), so the same person at
+  //     the bar doesn't mint two tickets by double-tapping.
+  // Skipped when ?force (e.g. while tuning copy). Wrapped so a store outage
+  // can't crash the request — worst case we just generate a fresh card.
   if (!body.force) {
     try {
-      const existing = await getRecentCardForHandle(handle, FRESH_MS);
+      const existing = await getCardForHandle(handle);
       if (existing) {
-        return NextResponse.json({ slug: existing.slug, reused: true });
+        const fresh = Date.now() - new Date(existing.generated_at).getTime() <= FRESH_MS;
+        if (existing.pinned || fresh) {
+          return NextResponse.json({ slug: existing.slug, reused: true });
+        }
       }
     } catch (e) {
       if (process.env.NODE_ENV !== "production") {

@@ -126,20 +126,26 @@ export async function getCard(slug: string): Promise<ReceiptCard | null> {
   return fileRead().cards[slug] ?? null;
 }
 
+/**
+ * Latest stored card for a handle, ignoring age. Used so a pre-warmed
+ * (pinned) creator always gets their ready-made card instantly.
+ */
+export async function getCardForHandle(handle: string): Promise<ReceiptCard | null> {
+  if (redis) {
+    const slug = await redis.get<string>(K.handle(handle));
+    if (!slug) return null;
+    return await getCard(slug);
+  }
+  const s = fileRead();
+  const slug = s.recent_by_handle[handle.toLowerCase()];
+  return slug ? s.cards[slug] ?? null : null;
+}
+
 export async function getRecentCardForHandle(
   handle: string,
   maxAgeMs: number,
 ): Promise<ReceiptCard | null> {
-  let card: ReceiptCard | null;
-  if (redis) {
-    const slug = await redis.get<string>(K.handle(handle));
-    if (!slug) return null;
-    card = await getCard(slug);
-  } else {
-    const s = fileRead();
-    const slug = s.recent_by_handle[handle.toLowerCase()];
-    card = slug ? s.cards[slug] ?? null : null;
-  }
+  const card = await getCardForHandle(handle);
   if (!card) return null;
   if (Date.now() - new Date(card.generated_at).getTime() > maxAgeMs) return null;
   return card;
