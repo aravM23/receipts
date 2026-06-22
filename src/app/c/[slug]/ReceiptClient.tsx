@@ -1,11 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
 import Receipt, { RECEIPT_WIDTH } from "@/components/Receipt";
 import ReceiptFrame from "@/components/ReceiptFrame";
-import StanleyHeader from "@/components/StanleyHeader";
 import type { ReceiptCard } from "@/lib/types";
 
 type Props = {
@@ -17,94 +16,61 @@ type Props = {
   relativeLabel: string;
 };
 
+/**
+ * Kiosk receipt screen. The guest already tapped "Print My Drink Ticket" on
+ * the landing, so the moment this page is ready we silently capture the
+ * receipt and send it to the print queue — no second button, no nav bar.
+ * A single "Done — next guest" CTA resets the kiosk for the next person.
+ */
 export default function ReceiptClient({
   card,
   qrDataUrl,
-  shareUrl,
   dateLabel,
   timeLabel,
   relativeLabel,
 }: Props) {
   const router = useRouter();
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<null | "png" | "queue">(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const firedRef = useRef(false);
+  const [status, setStatus] = useState<"printing" | "printed" | "error">("printing");
 
-  function flash(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2600);
-  }
-
-  async function downloadPng() {
-    if (!receiptRef.current || busy) return;
-    setBusy("png");
-    try {
-      const dataUrl = await toPng(receiptRef.current, {
-        pixelRatio: 3,
-        cacheBust: true,
-        backgroundColor: "#ffffff",
-      });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `stanley-receipt-${card.ticket}.png`;
-      a.click();
-    } catch {
-      flash("Couldn't export the image. Try again.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function printReceipt() {
-    if (busy) return;
-    setBusy("queue");
-    try {
-      // Capture the exact on-screen receipt so a label printer (MUNBYN 4x6)
-      // can print it verbatim via CUPS. pixelRatio 2 keeps the payload small
-      // enough for Redis while staying crisp on a 203/300dpi thermal head.
-      let image: string | undefined;
-      if (receiptRef.current) {
-        try {
-          image = await toPng(receiptRef.current, {
-            pixelRatio: 2,
-            cacheBust: true,
-            backgroundColor: "#ffffff",
-          });
-        } catch {
-          image = undefined; // worker falls back to its text/ESC-POS path
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    (async () => {
+      try {
+        await waitForReady(receiptRef.current);
+        let image: string | undefined;
+        if (receiptRef.current) {
+          try {
+            image = await toPng(receiptRef.current, {
+              pixelRatio: 2,
+              cacheBust: true,
+              backgroundColor: "#ffffff",
+            });
+          } catch {
+            image = undefined; // worker falls back to its text/ESC-POS path
+          }
         }
+        const resp = await fetch("/api/print", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug: card.slug, image }),
+        });
+        if (!resp.ok) throw new Error();
+        setStatus("printed");
+      } catch {
+        setStatus("error");
       }
-      const resp = await fetch("/api/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug: card.slug, image }),
-      });
-      if (!resp.ok) throw new Error();
-      flash("Printing your receipt…");
-    } catch {
-      flash("Couldn't reach the printer.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      flash("Link copied.");
-    } catch {
-      flash(shareUrl);
-    }
-  }
+    })();
+  }, [card.slug]);
 
   return (
-    <main className="flex-1 flex flex-col">
-      <StanleyHeader />
-
+    <main className="flex-1 flex flex-col" style={{ background: "#000" }}>
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
-        <div className="w-full max-w-[940px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-10 lg:gap-16">
+        <div className="flex flex-col items-center gap-9">
           {/* The receipt — authored at native 4x6 size, scaled to fit on screen.
-              The captured node (receiptRef) stays full-res for print/PNG. */}
+              The captured node (receiptRef) stays full-res for print. */}
           <ReceiptFrame maxDisplayWidth={400} className="shrink-0">
             <div ref={receiptRef} style={{ width: RECEIPT_WIDTH }}>
               <Receipt
@@ -117,64 +83,59 @@ export default function ReceiptClient({
             </div>
           </ReceiptFrame>
 
-          {/* Heading + actions */}
-          <div className="w-full max-w-[380px] flex flex-col lg:pt-6">
-            <p className="font-serif italic" style={{ fontSize: 26, lineHeight: 1.15, color: "#f3efe6" }}>
-              Stanley read you.
-              <br />
-              <span style={{ color: "rgba(243,239,230,0.6)" }}>Here&rsquo;s your receipt.</span>
+          <div className="w-full max-w-[400px] flex flex-col items-center gap-5">
+            <p
+              className="font-sans text-center"
+              style={{ fontSize: 15, color: "rgba(243,239,230,0.6)", minHeight: 20 }}
+            >
+              {status === "printing" && "Printing your drink ticket…"}
+              {status === "printed" && "Your drink ticket is printing — grab it at the bar."}
+              {status === "error" && "Couldn't reach the printer. Ask a host to retry."}
             </p>
 
-            <div className="mt-8 flex flex-col gap-3">
-              <button
-                onClick={printReceipt}
-                disabled={busy !== null}
-                className="stan-gradient-bg font-sans text-white rounded-full h-14 flex items-center justify-center gap-2 disabled:opacity-60 transition-transform active:scale-[0.99]"
-                style={{ fontWeight: 700, fontSize: 16, boxShadow: "0 12px 30px -10px rgba(168,86,232,0.55)" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/stanley-mark.png" alt="" width={22} height={22} className="-ml-1" />
-                {busy === "queue" ? "Printing…" : "Print my receipt"}
-              </button>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={downloadPng}
-                  disabled={busy !== null}
-                  className="font-mono flex-1 rounded-full h-12 text-[13px] disabled:opacity-60"
-                  style={{ border: "1px solid rgba(243,239,230,0.22)", color: "#f3efe6" }}
-                >
-                  {busy === "png" ? "Saving…" : "Download PNG"}
-                </button>
-                <button
-                  onClick={copyLink}
-                  className="font-mono flex-1 rounded-full h-12 text-[13px]"
-                  style={{ border: "1px solid rgba(243,239,230,0.22)", color: "#f3efe6" }}
-                >
-                  Copy link
-                </button>
-              </div>
-
-              <button
-                onClick={() => router.push("/")}
-                className="font-sans mt-2 h-12 text-[14px]"
-                style={{ color: "rgba(243,239,230,0.55)" }}
-              >
-                Done · next guest →
-              </button>
-            </div>
+            <button
+              onClick={() => router.push("/")}
+              className="font-sans w-full rounded-full h-14 flex items-center justify-center text-white transition-transform active:scale-[0.99]"
+              style={{
+                fontWeight: 700,
+                fontSize: 16,
+                letterSpacing: "0.01em",
+                background: "linear-gradient(180deg, #7b68ff 0%, #6955ff 100%)",
+                boxShadow: "0 14px 34px -10px rgba(105,85,255,0.7)",
+              }}
+            >
+              Done — next guest
+            </button>
           </div>
         </div>
       </div>
-
-      {toast && (
-        <div
-          className="font-sans fixed bottom-8 left-1/2 -translate-x-1/2 px-5 py-3 rounded-full text-[14px]"
-          style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
-        >
-          {toast}
-        </div>
-      )}
     </main>
   );
+}
+
+/**
+ * Wait for fonts + the receipt's images to finish loading so the captured
+ * PNG isn't blank/partial on the auto-fire.
+ */
+async function waitForReady(node: HTMLElement | null): Promise<void> {
+  try {
+    await (document.fonts?.ready ?? Promise.resolve());
+  } catch {
+    /* ignore */
+  }
+  if (node) {
+    const imgs = Array.from(node.querySelectorAll("img"));
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete && img.naturalWidth > 0
+          ? Promise.resolve()
+          : new Promise<void>((res) => {
+              img.addEventListener("load", () => res(), { once: true });
+              img.addEventListener("error", () => res(), { once: true });
+              setTimeout(res, 3000);
+            }),
+      ),
+    );
+  }
+  await new Promise((r) => setTimeout(r, 150));
 }

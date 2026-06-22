@@ -19,6 +19,9 @@ import type { Insight } from "./types";
 const DEFAULT_MODEL = "gpt-4o";
 const REQUEST_TIMEOUT_MS = 40_000;
 
+/** The only drinks the bar is serving — every card resolves to one of these. */
+const ALLOWED_DRINKS = ["Aperol Spritz", "Margarita", "French 75", "Wine", "Beer"] as const;
+
 export type GeneratedReceipt = {
   insights: Insight[];
   creator_type: string;
@@ -35,7 +38,7 @@ Produce a JSON object with EXACTLY these keys:
 {
   "insights": ["...", "...", "..."],   // exactly 3
   "creator_type": "Two Words",          // 2 words, title case, sounds like a nickname/identity
-  "drink": "Drink Name"                 // a real cocktail/drink, title case, no description
+  "drink": "Aperol Spritz"              // pick EXACTLY one from the allowed list below
 }
 
 THE BAR FOR INSIGHTS (most important):
@@ -52,7 +55,7 @@ HARD RULES:
 - REAL NUMBERS ONLY: reference a number ONLY if it appears verbatim in the FACTS. Never invent counts, dates, or stats.
 - Don't quote captions verbatim; infer from them.
 - creator_type: a fresh, flattering 2-word identity that fits THEIR actual niche (e.g. "Street Archivist", "Studio Tinkerer", "Late-Night Builder"). Title case. Not a sentence.
-- drink: one real drink that matches their energy. Just the name, title case.
+- drink: choose EXACTLY ONE from this list, copied verbatim — "Aperol Spritz", "Margarita", "French 75", "Wine", "Beer". Pick the one that best matches their energy. Do not invent any other drink.
 - Output ONLY the JSON object. No markdown, no commentary.`;
 
 function resolveClient(): OpenAI | null {
@@ -86,7 +89,8 @@ export async function generateReceipt(digest: CreatorDigest): Promise<GeneratedR
     if (!raw) return fallback(digest);
     const parsed = parseAndValidate(raw);
     if (!parsed) return fallback(digest);
-    return { ...parsed, llm_used: true };
+    // Force the drink into the bar's actual menu regardless of what the model said.
+    return { ...parsed, drink: coerceDrink(parsed.drink, digest), llm_used: true };
   } catch (e) {
     if (process.env.NODE_ENV !== "production") {
       console.warn(`[generate] LLM failed, using fallback: ${e instanceof Error ? e.message : String(e)}`);
@@ -182,10 +186,42 @@ function fallbackType(d: CreatorDigest): string {
 }
 
 function fallbackDrink(d: CreatorDigest): string {
-  if (d.format_mix.dominant === "reel") return "Espresso Martini";
-  if (d.time_patterns.night_owl_post_count > 0) return "Mezcal Negroni";
-  if (d.format_mix.dominant === "carousel") return "Spicy Margarita";
-  return "Elderflower Spritz";
+  if (d.format_mix.dominant === "reel") return "French 75";
+  if (d.time_patterns.night_owl_post_count > 0) return "Margarita";
+  if (d.format_mix.dominant === "carousel") return "Aperol Spritz";
+  if ((d.profile.follower_count ?? 0) > 100_000) return "Wine";
+  return "Beer";
+}
+
+/** Map whatever the model returned to one of the allowed menu drinks. */
+function coerceDrink(raw: string, digest: CreatorDigest): string {
+  const norm = raw.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  const aliases: Record<string, (typeof ALLOWED_DRINKS)[number]> = {
+    "aperol spritz": "Aperol Spritz",
+    aperol: "Aperol Spritz",
+    spritz: "Aperol Spritz",
+    margarita: "Margarita",
+    margherita: "Margarita",
+    "spicy margarita": "Margarita",
+    "french 75": "French 75",
+    french75: "French 75",
+    "french 75 cocktail": "French 75",
+    wine: "Wine",
+    "red wine": "Wine",
+    "white wine": "Wine",
+    rose: "Wine",
+    prosecco: "Wine",
+    champagne: "Wine",
+    beer: "Beer",
+    lager: "Beer",
+    ipa: "Beer",
+    pilsner: "Beer",
+  };
+  if (aliases[norm]) return aliases[norm];
+  for (const [key, value] of Object.entries(aliases)) {
+    if (norm.includes(key)) return value;
+  }
+  return fallbackDrink(digest);
 }
 
 // ---- string utils ----
