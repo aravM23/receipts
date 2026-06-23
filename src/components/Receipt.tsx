@@ -169,8 +169,14 @@ export default function Receipt({ card, framed = true }: Props) {
             Your Creator Archetype
           </div>
           <div
+            className="font-inter"
+            style={{ marginTop: 6, fontSize: 28, fontWeight: 600, lineHeight: 1.1, letterSpacing: "-0.3px", color: MUTED }}
+          >
+            @{card.instagram_handle}
+          </div>
+          <div
             className="font-serif"
-            style={{ marginTop: 12, color: INK, fontStyle: "italic", fontSize: 66, fontWeight: 500, lineHeight: 1.02, letterSpacing: "-1.4px" }}
+            style={{ marginTop: 8, color: INK, fontStyle: "italic", fontSize: 66, fontWeight: 500, lineHeight: 1.02, letterSpacing: "-1.4px" }}
           >
             {card.creator_type}
           </div>

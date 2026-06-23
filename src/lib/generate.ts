@@ -38,7 +38,7 @@ Produce a JSON object with EXACTLY these keys:
 {
   "insights": ["...", "...", "..."],   // exactly 3
   "creator_type": "Two Words",          // 2 words, title case, sounds like a nickname/identity
-  "drink": "Aperol Spritz"              // pick EXACTLY one from the allowed list below
+  "drink": "<ONE drink copied verbatim from the allowed list>"
 }
 
 THE BAR FOR INSIGHTS (most important):
@@ -55,7 +55,13 @@ HARD RULES:
 - REAL NUMBERS ONLY: reference a number ONLY if it appears verbatim in the FACTS. Never invent counts, dates, or stats.
 - Don't quote captions verbatim; infer from them.
 - creator_type: a fresh, flattering 2-word identity that fits THEIR actual niche (e.g. "Street Archivist", "Studio Tinkerer", "Late-Night Builder"). Title case. Not a sentence.
-- drink: choose EXACTLY ONE from this list, copied verbatim — "Aperol Spritz", "Margarita", "French 75", "Wine", "Beer". Pick the one that best matches their energy. Do not invent any other drink.
+- drink: choose EXACTLY ONE from this list, copied verbatim — "Aperol Spritz", "Margarita", "French 75", "Wine", "Beer". Match it to THIS person's specific personality from their captions. Do NOT default to Aperol Spritz; genuinely vary the pick across different creators. Use this vibe guide:
+  * Aperol Spritz - bright, social, aesthetic, sunny, travel/brunch/lifestyle energy.
+  * Margarita - bold, playful, high-energy, party, funny, extroverted.
+  * French 75 - elegant, polished, fashion, luxury, refined, sophisticated.
+  * Wine - thoughtful, cozy, intimate, writerly, warm, romantic, slow-living.
+  * Beer - down-to-earth, casual, sporty, relatable, no-frills, everyman.
+  Do not invent any other drink.
 - Output ONLY the JSON object. No markdown, no commentary.`;
 
 function resolveClient(): OpenAI | null {
