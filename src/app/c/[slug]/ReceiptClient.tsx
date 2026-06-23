@@ -87,7 +87,7 @@ export default function ReceiptClient({
                   className="font-sans text-center"
                   style={{ fontSize: 15, color: "rgba(243,239,230,0.7)", minHeight: 20 }}
                 >
-                  Your drink ticket is printing — grab it at the bar.
+                  Your receipt is printing down below.
                 </p>
                 <button
                   onClick={() => router.push("/")}
