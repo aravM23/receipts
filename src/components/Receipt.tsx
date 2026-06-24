@@ -31,13 +31,13 @@ const PAD_X = 66;
  * without bespoke art yet fall back to the default cocktail hero.
  */
 const DRINK_IMAGES: Record<string, string> = {
-  "Aperol Spritz": "/cocktail-hero.png",
+  "Aperol Spritz": "/drink-aperol-spritz.png",
   Margarita: "/drink-margarita.png",
   "French 75": "/drink-french-75.png",
   Wine: "/drink-wine.png",
   Beer: "/drink-beer.png",
 };
-const DEFAULT_DRINK_IMAGE = "/cocktail-hero.png";
+const DEFAULT_DRINK_IMAGE = "/drink-aperol-spritz.png";
 
 function drinkImage(drink: string): string {
   return DRINK_IMAGES[drink] ?? DEFAULT_DRINK_IMAGE;
