@@ -41,9 +41,15 @@ export default function ReceiptClient({
       let image: string | undefined;
       if (receiptRef.current) {
         try {
+          // Bake every image (esp. the cross-origin avatar) into inline data
+          // URLs from the bytes the browser already loaded, so the captured
+          // PNG ALWAYS matches the face shown on screen for this handle.
+          // Without this, html-to-image re-fetches the avatar at capture time,
+          // which can race / fail / return a stale image -> wrong or blank face.
+          await inlineImages(receiptRef.current);
           image = await toPng(receiptRef.current, {
             pixelRatio: 2,
-            cacheBust: true,
+            cacheBust: false,
             backgroundColor: "#ffffff",
           });
         } catch {
@@ -152,6 +158,43 @@ export default function ReceiptClient({
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * Replace every <img> in the node with an inline data: URL built from the
+ * bytes the browser already loaded (force-cache). This is the guarantee that
+ * the printed receipt's avatar is EXACTLY the face shown on screen for this
+ * handle: after this runs, html-to-image has nothing to fetch and cannot race,
+ * fail, or substitute a stale/other image. Images that fail to inline are left
+ * untouched (the on-screen src), so we never swap in someone else's face.
+ */
+async function inlineImages(node: HTMLElement): Promise<void> {
+  const imgs = Array.from(node.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.currentSrc || img.src;
+      if (!src || src.startsWith("data:")) return;
+      try {
+        const resp = await fetch(src, { cache: "force-cache" });
+        if (!resp.ok) return;
+        const blob = await resp.blob();
+        const dataUrl = await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result));
+          fr.onerror = () => rej(new Error("read failed"));
+          fr.readAsDataURL(blob);
+        });
+        await new Promise<void>((res) => {
+          img.onload = () => res();
+          img.onerror = () => res();
+          img.src = dataUrl;
+          if (img.complete && img.naturalWidth > 0) res();
+        });
+      } catch {
+        /* leave the original src in place */
+      }
+    }),
   );
 }
 
